@@ -1,0 +1,100 @@
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 420px;
+}
+
+.login-visual {
+  background: #f2f4f8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-visual img {
+  width: min(900px, 100%);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.login-panel {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: #ffffff;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 340px;
+}
+
+.brand {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.login-help {
+  margin: 10px 0 24px;
+  color: #737b8b;
+}
+
+.login-form {
+  display: grid;
+  gap: 10px;
+}
+
+.login-form label {
+  font-size: 14px;
+  color: #576076;
+}
+
+.login-form input,
+.login-form select {
+  border: 1px solid #d9dfeb;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+}
+
+.login-form button {
+  margin-top: 10px;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px;
+  font-weight: 600;
+  background: #4263eb;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.login-form .secondary-btn {
+  margin-top: 0;
+  background: #eef2ff;
+  color: #3157dd;
+}
+
+.login-error {
+  color: #d83535;
+  font-size: 14px;
+  margin: 0;
+}
+
+.login-success {
+  color: #147a3f;
+  font-size: 14px;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .login-screen {
+    grid-template-columns: 1fr;
+  }
+}
