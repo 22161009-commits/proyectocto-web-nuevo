@@ -3,6 +3,7 @@ import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 import './App.css'
 
 const API_BASE_URL = 'http://localhost:3001/api'
+const PROJECTS_STORAGE_KEY = 'projects-local'
 
 function App() {
   const navigate = useNavigate()
@@ -18,6 +19,17 @@ function App() {
   const [success, setSuccess] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isRegisterMode, setIsRegisterMode] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [projects, setProjects] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY) || '[]')
+    } catch {
+      return []
+    }
+  })
+  const [selectedModel, setSelectedModel] = useState(null)
+  const [projectName, setProjectName] = useState('')
+  const [projectMessage, setProjectMessage] = useState('')
 
   useEffect(() => {
     const loadRoles = async () => {
@@ -37,6 +49,10 @@ function App() {
     loadRoles()
   }, [])
 
+  useEffect(() => {
+    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects))
+  }, [projects])
+
   const catalogItems = useMemo(
     () => [
       { title: 'Mesa de trabajo', category: 'Mesa', image: '/images/mesa.jpg' },
@@ -46,13 +62,21 @@ function App() {
     ],
     [],
   )
-  const projectItems = useMemo(
-    () => [
-      { name: 'Closet recamara principal', model: 'Closet 2 puertas', updatedAt: '06 Mayo 2026' },
-      { name: 'Centro de TV sala', model: 'Mueble TV moderno', updatedAt: '04 Mayo 2026' },
-      { name: 'Escritorio estudio', model: 'Escritorio L', updatedAt: '01 Mayo 2026' },
-    ],
-    [],
+
+  const filteredProjects = useMemo(() => {
+    const normalizedTerm = searchTerm.trim().toLowerCase()
+    if (!normalizedTerm) return projects
+    return projects.filter((project) => {
+      return (
+        project.name.toLowerCase().includes(normalizedTerm) ||
+        project.model.toLowerCase().includes(normalizedTerm)
+      )
+    })
+  }, [projects, searchTerm])
+
+  const favoriteProjects = useMemo(
+    () => filteredProjects.filter((project) => project.isFavorite),
+    [filteredProjects],
   )
 
   const handleLogin = async (event) => {
@@ -80,6 +104,7 @@ function App() {
       localStorage.setItem('userName', data.user?.nombre ?? '')
       localStorage.setItem('isLoggedIn', 'true')
       setIsLoggedIn(true)
+      setError('')
       navigate('/inicio')
     } catch {
       setError('No se pudo iniciar sesion. Verifica email y contrasena.')
@@ -139,7 +164,50 @@ function App() {
     setName('')
     setEmail('')
     setPassword('')
+    setSearchTerm('')
+    setSelectedModel(null)
+    setProjectName('')
+    setProjectMessage('')
     navigate('/')
+  }
+
+  const handleChooseModel = (model) => {
+    setSelectedModel(model)
+    setProjectName(`${model.title} ${new Date().getFullYear()}`)
+    setProjectMessage('')
+  }
+
+  const handleCreateProject = (event) => {
+    event.preventDefault()
+    if (!selectedModel || !projectName.trim()) return
+
+    const newProject = {
+      id: Date.now(),
+      name: projectName.trim(),
+      model: selectedModel.title,
+      category: selectedModel.category,
+      image: selectedModel.image,
+      updatedAt: new Date().toLocaleDateString('es-MX', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
+      isFavorite: false,
+    }
+
+    setProjects((previousProjects) => [newProject, ...previousProjects])
+    setProjectMessage('Proyecto creado correctamente y agregado a Mis proyectos.')
+    setSelectedModel(null)
+    setProjectName('')
+    navigate('/mis-proyectos')
+  }
+
+  const toggleFavoriteProject = (projectId) => {
+    setProjects((previousProjects) =>
+      previousProjects.map((project) =>
+        project.id === projectId ? { ...project, isFavorite: !project.isFavorite } : project,
+      ),
+    )
   }
 
   if (!isLoggedIn) {
@@ -263,7 +331,13 @@ function App() {
 
       <section className="content">
         <header className="topbar">
-          <input className="search" type="text" placeholder="Buscar proyecto o modelo..." />
+          <input
+            className="search"
+            type="text"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Buscar proyecto o modelo..."
+          />
           <button className="logout" onClick={handleLogout}>
             Cerrar sesion
           </button>
@@ -272,15 +346,33 @@ function App() {
         <Routes>
           <Route
             path="/inicio"
-            element={<HomeView catalogItems={catalogItems} userName={localStorage.getItem('userName')} />}
+            element={
+              <HomeView
+                catalogItems={catalogItems}
+                userName={localStorage.getItem('userName')}
+                selectedModel={selectedModel}
+                projectName={projectName}
+                projectMessage={projectMessage}
+                onProjectNameChange={setProjectName}
+                onChooseModel={handleChooseModel}
+                onCreateProject={handleCreateProject}
+              />
+            }
           />
           <Route
             path="/mis-proyectos"
             element={
-              <ProjectsView projectItems={projectItems} userName={localStorage.getItem('userName')} />
+              <ProjectsView
+                projectItems={filteredProjects}
+                userName={localStorage.getItem('userName')}
+                onToggleFavorite={toggleFavoriteProject}
+              />
             }
           />
-          <Route path="/favoritos" element={<FavoritesView />} />
+          <Route
+            path="/favoritos"
+            element={<FavoritesView favoriteItems={favoriteProjects} onToggleFavorite={toggleFavoriteProject} />}
+          />
           <Route path="/configuracion" element={<SettingsView />} />
           <Route path="/ayuda" element={<HelpView />} />
           <Route path="*" element={<Navigate to="/inicio" replace />} />
@@ -290,7 +382,16 @@ function App() {
   )
 }
 
-function HomeView({ catalogItems, userName }) {
+function HomeView({
+  catalogItems,
+  userName,
+  selectedModel,
+  projectName,
+  projectMessage,
+  onProjectNameChange,
+  onChooseModel,
+  onCreateProject,
+}) {
   return (
     <>
       <section className="hero-banner">
@@ -308,29 +409,73 @@ function HomeView({ catalogItems, userName }) {
             <img src={item.image} alt={item.title} />
             <span>{item.category}</span>
             <h3>{item.title}</h3>
+            <div className="card-actions">
+              <button type="button" className="card-btn" onClick={() => onChooseModel(item)}>
+                Elegir modelo
+              </button>
+            </div>
           </article>
         ))}
+      </section>
+
+      <section className="content-view project-creator">
+        <div className="page-header">
+          <h2>Crear proyecto rapido</h2>
+          <p>Escoge un modelo, pon nombre y guarlo en Mis proyectos.</p>
+        </div>
+        {projectMessage ? <p className="login-success">{projectMessage}</p> : null}
+        <form onSubmit={onCreateProject} className="project-form">
+          <label htmlFor="selectedModel">Modelo seleccionado</label>
+          <input
+            id="selectedModel"
+            type="text"
+            value={selectedModel ? selectedModel.title : 'Aun no seleccionas modelo'}
+            readOnly
+          />
+          <label htmlFor="projectName">Nombre del proyecto</label>
+          <input
+            id="projectName"
+            type="text"
+            value={projectName}
+            onChange={(event) => onProjectNameChange(event.target.value)}
+            placeholder="Ejemplo: Mesa oficina abril"
+            required
+          />
+          <button type="submit" disabled={!selectedModel || !projectName.trim()}>
+            Guardar en mis proyectos
+          </button>
+        </form>
       </section>
     </>
   )
 }
 
-function ProjectsView({ projectItems, userName }) {
+function ProjectsView({ projectItems, userName, onToggleFavorite }) {
   return (
     <section className="content-view">
       <div className="page-header">
         <h2>Mis proyectos</h2>
         <p>Vista de proyectos creados por {userName || 'el usuario actual'}.</p>
       </div>
+      {projectItems.length === 0 ? (
+        <div className="empty-state">
+          <p>No hay proyectos aun. Ve a Inicio y crea uno desde un modelo.</p>
+        </div>
+      ) : null}
       <div className="projects-table">
         {projectItems.map((project) => (
-          <article className="project-row" key={project.name}>
+          <article className="project-row" key={project.id}>
+            <img src={project.image} alt={project.name} className="project-thumb" />
             <div>
               <h3>{project.name}</h3>
-              <p>{project.model}</p>
+              <p>
+                {project.model} - {project.category}
+              </p>
             </div>
             <span>{project.updatedAt}</span>
-            <button type="button">Ver detalle</button>
+            <button type="button" onClick={() => onToggleFavorite(project.id)}>
+              {project.isFavorite ? 'Quitar favorito' : 'Agregar favorito'}
+            </button>
           </article>
         ))}
       </div>
@@ -338,16 +483,34 @@ function ProjectsView({ projectItems, userName }) {
   )
 }
 
-function FavoritesView() {
+function FavoritesView({ favoriteItems, onToggleFavorite }) {
   return (
     <section className="content-view">
       <div className="page-header">
         <h2>Favoritos</h2>
-        <p>Guarda los modelos que usas seguido para acceder rapido.</p>
+        <p>Proyectos destacados para acceso rapido.</p>
       </div>
-      <div className="empty-state">
-        <p>Aun no tienes favoritos. Desde Inicio puedes marcar modelos para verlos aqui.</p>
-      </div>
+      {favoriteItems.length === 0 ? (
+        <div className="empty-state">
+          <p>Aun no tienes favoritos. Desde Mis proyectos puedes marcarlos.</p>
+        </div>
+      ) : (
+        <div className="projects-table">
+          {favoriteItems.map((project) => (
+            <article className="project-row" key={project.id}>
+              <img src={project.image} alt={project.name} className="project-thumb" />
+              <div>
+                <h3>{project.name}</h3>
+                <p>{project.model}</p>
+              </div>
+              <span>{project.updatedAt}</span>
+              <button type="button" onClick={() => onToggleFavorite(project.id)}>
+                Quitar favorito
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }

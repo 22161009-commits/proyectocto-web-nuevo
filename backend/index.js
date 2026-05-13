@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import bcrypt from 'bcryptjs'
 import { pool } from './db.js'
 
 dotenv.config()
@@ -45,7 +46,19 @@ app.post('/api/auth/login', async (req, res) => {
     )
 
     const user = result.rows[0]
-    if (!user || user.contrasena !== password) {
+    if (!user) {
+      return res.status(401).json({ ok: false, message: 'Credenciales invalidas.' })
+    }
+
+    let isPasswordValid = false
+    // Compatibility with old plain-text records while new users use bcrypt hash.
+    if (typeof user.contrasena === 'string' && user.contrasena.startsWith('$2')) {
+      isPasswordValid = await bcrypt.compare(password, user.contrasena)
+    } else {
+      isPasswordValid = user.contrasena === password
+    }
+
+    if (!isPasswordValid) {
       return res.status(401).json({ ok: false, message: 'Credenciales invalidas.' })
     }
 
@@ -83,11 +96,13 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(409).json({ ok: false, message: 'El email ya esta registrado.' })
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10)
+
     const insert = await pool.query(
       `INSERT INTO usuarios (nombre, email, contrasena, id_rol)
        VALUES ($1, $2, $3, $4)
        RETURNING id_usuario, nombre, email, id_rol`,
-      [nombre, email, password, id_rol],
+      [nombre, email, hashedPassword, id_rol],
     )
 
     return res.status(201).json({ ok: true, user: insert.rows[0] })
