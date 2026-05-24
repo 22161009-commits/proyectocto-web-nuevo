@@ -6,11 +6,17 @@
   "scripts": {
     "dev": "vite",
     "dev:backend": "npm --prefix backend run dev",
+    "db:seed": "psql -d muebles_db -f backend/seed.sql",
+    "db:seed-admin": "psql -d muebles_db -f backend/seed-admin.sql",
+    "db:auth-migrate": "psql -d muebles_db -f backend/auth-migration.sql",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.4",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.15.0"
