@@ -1,3 +1,22 @@
+:root {
+  --bg-page: #fbf5ec;
+  --bg-card: #ffffff;
+  --bg-soft: #f3e9d8;
+  --bg-softer: #f8eedd;
+  --text: #3b2418;
+  --text-muted: #7a6248;
+  --border: #e5d2b5;
+  --border-strong: #c9b08b;
+  --primary: #8b4513;
+  --primary-dark: #5d2f1a;
+  --primary-light: #b85c38;
+  --accent: #c0392b;
+  --gold: #d4a35a;
+  --gold-soft: #f5e1b3;
+  --success: #2f7a3a;
+  --danger: #b91c1c;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -5,7 +24,8 @@
 body {
   margin: 0;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  color: #121826;
+  color: var(--text);
+  background: var(--bg-page);
 }
 
 h1,
