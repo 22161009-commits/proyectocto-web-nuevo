@@ -76,6 +76,98 @@ function getModelsForCategory(category, catalogItems) {
   })
 }
 
+function getDerivedMeasures(base, measures) {
+  return {
+    anchoSuperior: Math.round(((base.anchoSuperior ?? base.anchoTotal) / base.anchoTotal) * measures.anchoTotal),
+    altoLateral: Math.round(((base.altoLateral ?? 150) / base.altoTotal) * measures.altoTotal),
+    altoCajon: Math.round(((base.altoCajon ?? 100) / base.altoTotal) * measures.altoTotal),
+  }
+}
+
+function clampNumber(value, min, max) {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return min
+  return Math.min(Math.max(numericValue, min), max)
+}
+
+function validateMeasureRange(value, min, max, label) {
+  if (value === '' || value === null || value === undefined) {
+    return `${label} es obligatorio.`
+  }
+
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) {
+    return `${label} debe ser un numero valido.`
+  }
+
+  if (numericValue < min || numericValue > max) {
+    return `${label} debe estar entre ${min} y ${max} mm.`
+  }
+
+  return ''
+}
+
+function positiveDimension(value) {
+  return Math.max(1, Math.round(value))
+}
+
+function getMeasureRanges(base) {
+  const defaultRanges = {
+    ancho: {
+      min: Math.round(base.anchoTotal * 0.85),
+      max: Math.round(base.anchoTotal * 1.15),
+    },
+    alto: {
+      min: Math.round(base.altoTotal * 0.85),
+      max: Math.round(base.altoTotal * 1.15),
+    },
+    fondo: {
+      min: Math.round(base.fondo * 0.85),
+      max: Math.round(base.fondo * 1.15),
+    },
+  }
+
+  if (base.tipo === 'buro') {
+    return {
+      ancho: { min: Math.max(defaultRanges.ancho.min, 300), max: defaultRanges.ancho.max },
+      alto: { min: Math.max(defaultRanges.alto.min, 420), max: defaultRanges.alto.max },
+      fondo: { min: Math.max(defaultRanges.fondo.min, 300), max: defaultRanges.fondo.max },
+    }
+  }
+
+  const minAltoPorPiezas = Math.ceil((36 * base.altoTotal) / (base.altoLateral ?? 150))
+  return {
+    ancho: { min: Math.max(defaultRanges.ancho.min, 250), max: defaultRanges.ancho.max },
+    alto: { min: Math.max(defaultRanges.alto.min, minAltoPorPiezas + 1, 420), max: defaultRanges.alto.max },
+    fondo: { min: Math.max(defaultRanges.fondo.min, 220), max: defaultRanges.fondo.max },
+  }
+}
+
+function getEditorLabels(model, measures) {
+  const base = model?.base || {}
+  const derived = getDerivedMeasures(base, measures)
+  const allMeasures = { ...measures, ...derived }
+
+  if (base.tipo === 'buro') {
+    return [
+      { key: 'altoTotal', value: allMeasures.altoTotal, left: '88%', top: '22%' },
+      { key: 'altoLateral', value: allMeasures.altoLateral, left: '8%', top: '34%' },
+      { key: 'anchoFrontal', value: allMeasures.anchoTotal, left: '31%', top: '49%' },
+      { key: 'fondo', value: allMeasures.fondo, left: '88%', top: '72%' },
+      { key: 'altoCajon', value: allMeasures.altoCajon, left: '92%', top: '89%' },
+      { key: 'anchoPerfil', value: allMeasures.anchoTotal, left: '51%', top: '96%' },
+    ]
+  }
+
+  return [
+    { key: 'anchoSuperior', value: allMeasures.anchoSuperior, left: '40%', top: '4%' },
+    { key: 'altoLateral', value: allMeasures.altoLateral, left: '60%', top: '14%' },
+    { key: 'anchoTotal', value: allMeasures.anchoTotal, left: '40%', top: '94%' },
+    { key: 'altoTotal', value: allMeasures.altoTotal, left: '6%', top: '50%', rotated: true },
+    { key: 'fondo', value: allMeasures.fondo, left: '74%', top: '60%' },
+  ]
+}
+
 function MenuIcon({ name }) {
   const icons = {
     inicio: (
@@ -984,15 +1076,30 @@ function MuebleEditorView({
   const [altoTotal, setAltoTotal] = useState(initialMeasures?.altoTotal ?? base.altoTotal)
   const [fondo, setFondo] = useState(initialMeasures?.fondo ?? base.fondo)
 
-  const ANCHO_MIN = Math.round(base.anchoTotal * 0.85)
-  const ANCHO_MAX = Math.round(base.anchoTotal * 1.15)
-  const ALTO_MIN = Math.round(base.altoTotal * 0.85)
-  const ALTO_MAX = Math.round(base.altoTotal * 1.15)
-  const FONDO_MIN = Math.round(base.fondo * 0.85)
-  const FONDO_MAX = Math.round(base.fondo * 1.15)
+  const measureRanges = getMeasureRanges(base)
+  const ANCHO_MIN = measureRanges.ancho.min
+  const ANCHO_MAX = measureRanges.ancho.max
+  const ALTO_MIN = measureRanges.alto.min
+  const ALTO_MAX = measureRanges.alto.max
+  const FONDO_MIN = measureRanges.fondo.min
+  const FONDO_MAX = measureRanges.fondo.max
 
-  const anchoSuperior = Math.round((base.anchoSuperior / base.anchoTotal) * anchoTotal)
-  const altoLateral = Math.round((base.altoLateral / base.altoTotal) * altoTotal)
+  const safeMeasures = {
+    anchoTotal: clampNumber(anchoTotal, ANCHO_MIN, ANCHO_MAX),
+    altoTotal: clampNumber(altoTotal, ALTO_MIN, ALTO_MAX),
+    fondo: clampNumber(fondo, FONDO_MIN, FONDO_MAX),
+  }
+
+  const { anchoSuperior, altoLateral, altoCajon } = getDerivedMeasures(base, safeMeasures)
+  const diagramLabels = getEditorLabels(model, safeMeasures)
+
+  const getMeasuresError = () => {
+    return (
+      validateMeasureRange(anchoTotal, ANCHO_MIN, ANCHO_MAX, 'Ancho total') ||
+      validateMeasureRange(altoTotal, ALTO_MIN, ALTO_MAX, 'Altura total') ||
+      validateMeasureRange(fondo, FONDO_MIN, FONDO_MAX, 'Fondo')
+    )
+  }
 
   useEffect(() => {
     setProjectName(initialName || `${safeModelTitle} ${new Date().getFullYear()}`)
@@ -1006,22 +1113,32 @@ function MuebleEditorView({
   const handleSave = (event) => {
     event.preventDefault()
     if (!projectName.trim()) return
+    const measuresError = getMeasuresError()
+    if (measuresError) {
+      window.alert(measuresError)
+      return
+    }
 
     onSave({
       name: projectName,
       isFavorite: addToFavorites,
       measures: {
-        anchoTotal,
-        altoTotal,
-        fondo,
+        ...safeMeasures,
         anchoSuperior,
         altoLateral,
+        altoCajon,
       },
     })
   }
 
   const handleGeneratePdf = async () => {
-    const measures = { anchoTotal, altoTotal, fondo, anchoSuperior, altoLateral }
+    const measuresError = getMeasuresError()
+    if (measuresError) {
+      window.alert(measuresError)
+      return
+    }
+
+    const measures = { ...safeMeasures, anchoSuperior, altoLateral, altoCajon }
     try {
       await generateDespiecePdf({ projectName, model, measures })
     } catch {
@@ -1045,21 +1162,15 @@ function MuebleEditorView({
           <div className="diagram-wrapper">
             <img src={model.diagram} alt={`Diagrama de ${model.title}`} className="diagram-img" />
 
-            <div className="diagram-label" style={{ left: '40%', top: '4%' }}>
-              {anchoSuperior}
-            </div>
-            <div className="diagram-label" style={{ left: '60%', top: '14%' }}>
-              {altoLateral}
-            </div>
-            <div className="diagram-label" style={{ left: '40%', top: '94%' }}>
-              {anchoTotal}
-            </div>
-            <div className="diagram-label diagram-label-rot" style={{ left: '6%', top: '50%' }}>
-              {altoTotal}
-            </div>
-            <div className="diagram-label" style={{ left: '74%', top: '60%' }}>
-              {fondo}
-            </div>
+            {diagramLabels.map((label) => (
+              <div
+                className={`diagram-label ${label.rotated ? 'diagram-label-rot' : ''}`}
+                style={{ left: label.left, top: label.top }}
+                key={label.key}
+              >
+                {label.value}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -1081,11 +1192,12 @@ function MuebleEditorView({
             min={ANCHO_MIN}
             max={ANCHO_MAX}
             step={1}
-            onChange={(event) => setAnchoTotal(Number(event.target.value))}
+            onBlur={(event) => setAnchoTotal(clampNumber(event.target.value, ANCHO_MIN, ANCHO_MAX))}
+            onChange={(event) => setAnchoTotal(event.target.value)}
             required
           />
           <div className="editor-hint">
-            Rango: {ANCHO_MIN} - {ANCHO_MAX} mm. Ancho superior: {anchoSuperior} mm
+            Rango: {ANCHO_MIN} - {ANCHO_MAX} mm. Medida proporcional: {anchoSuperior} mm
           </div>
 
           <label htmlFor="altoTotal">Altura total (mm)</label>
@@ -1096,11 +1208,12 @@ function MuebleEditorView({
             min={ALTO_MIN}
             max={ALTO_MAX}
             step={1}
-            onChange={(event) => setAltoTotal(Number(event.target.value))}
+            onBlur={(event) => setAltoTotal(clampNumber(event.target.value, ALTO_MIN, ALTO_MAX))}
+            onChange={(event) => setAltoTotal(event.target.value)}
             required
           />
           <div className="editor-hint">
-            Rango: {ALTO_MIN} - {ALTO_MAX} mm. Altura lateral: {altoLateral} mm
+            Rango: {ALTO_MIN} - {ALTO_MAX} mm. Altura secundaria: {altoLateral} mm
           </div>
 
           <label htmlFor="fondo">Fondo (mm)</label>
@@ -1111,7 +1224,8 @@ function MuebleEditorView({
             min={FONDO_MIN}
             max={FONDO_MAX}
             step={1}
-            onChange={(event) => setFondo(Number(event.target.value))}
+            onBlur={(event) => setFondo(clampNumber(event.target.value, FONDO_MIN, FONDO_MAX))}
+            onChange={(event) => setFondo(event.target.value)}
             required
           />
           <div className="editor-hint">
@@ -1151,28 +1265,52 @@ function MuebleEditorView({
 function buildZapateroPieces(measures) {
   const { anchoTotal, altoTotal, fondo, anchoSuperior, altoLateral } = measures
 
-  const columnaLargo = Math.round(altoTotal - 168)
-  const lateralLargo = Math.round(altoLateral - 36)
-  const repisaLargo = Math.round(260 * (anchoTotal / 480))
-  const lateralCajonLargo = Math.round(300 * (fondo / 350))
-  const frenteCajonLargo = Math.round(352 * (anchoSuperior / 450))
-  const tapaCajonLargo = Math.round(104 * (anchoSuperior / 450))
-  const tapaCajonAncho = Math.round(404 * (anchoSuperior / 450))
-  const fondoCajonLargo = Math.round(278 * (anchoSuperior / 450))
-  const fondoCajonAncho = Math.round(366 * (fondo / 350))
+  const columnaLargo = positiveDimension(altoTotal - 168)
+  const lateralLargo = positiveDimension(altoLateral - 36)
+  const repisaLargo = positiveDimension(260 * (anchoTotal / 480))
+  const lateralCajonLargo = positiveDimension(300 * (fondo / 350))
+  const frenteCajonLargo = positiveDimension(352 * (anchoSuperior / 450))
+  const tapaCajonLargo = positiveDimension(104 * (anchoSuperior / 450))
+  const tapaCajonAncho = positiveDimension(404 * (anchoSuperior / 450))
+  const fondoCajonLargo = positiveDimension(278 * (anchoSuperior / 450))
+  const fondoCajonAncho = positiveDimension(366 * (fondo / 350))
 
   return [
     { num: 1, nombre: 'COLUMNA', alto: columnaLargo, ancho: 250, cantidad: 1, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 1, cantoSup: 0, cantoInf: 0 },
     { num: 2, nombre: 'VERTICAL', alto: columnaLargo, ancho: 250, cantidad: 1, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 0, cantoSup: 0, cantoInf: 0 },
-    { num: 3, nombre: 'BASE', alto: anchoTotal, ancho: fondo, cantidad: 1, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 1, cantoSup: 1, cantoInf: 1 },
-    { num: 4, nombre: 'REPISA', alto: repisaLargo, ancho: fondo, cantidad: 12, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 1, cantoSup: 1, cantoInf: 1 },
-    { num: 5, nombre: 'LATERAL', alto: lateralLargo, ancho: fondo, cantidad: 2, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 0, cantoSup: 0, cantoInf: 0 },
-    { num: 6, nombre: 'BASE Y TECHO', alto: anchoSuperior, ancho: fondo, cantidad: 2, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 1, cantoSup: 1, cantoInf: 1 },
+    { num: 3, nombre: 'BASE', alto: positiveDimension(anchoTotal), ancho: positiveDimension(fondo), cantidad: 1, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 1, cantoSup: 1, cantoInf: 1 },
+    { num: 4, nombre: 'REPISA', alto: repisaLargo, ancho: positiveDimension(fondo), cantidad: 12, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 1, cantoSup: 1, cantoInf: 1 },
+    { num: 5, nombre: 'LATERAL', alto: lateralLargo, ancho: positiveDimension(fondo), cantidad: 2, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 0, cantoSup: 0, cantoInf: 0 },
+    { num: 6, nombre: 'BASE Y TECHO', alto: positiveDimension(anchoSuperior), ancho: positiveDimension(fondo), cantidad: 2, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 1, cantoSup: 1, cantoInf: 1 },
     { num: 7, nombre: 'LATERAL DE CAJON', alto: lateralCajonLargo, ancho: 80, cantidad: 2, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 0, cantoSup: 0, cantoInf: 0 },
     { num: 8, nombre: 'FRENTE DE CAJON', alto: frenteCajonLargo, ancho: 80, cantidad: 2, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 0, cantoSup: 0, cantoInf: 0 },
     { num: 9, nombre: 'TAPA DE CAJON', alto: tapaCajonLargo, ancho: tapaCajonAncho, cantidad: 1, material: 'MDF 15mm', giro: 'N', cantoIzq: 1, cantoDer: 1, cantoSup: 1, cantoInf: 1 },
     { num: 10, nombre: 'FONDO DE CAJON', alto: fondoCajonLargo, ancho: fondoCajonAncho, cantidad: 1, material: 'MDF 3mm', giro: 'N', cantoIzq: 0, cantoDer: 0, cantoSup: 0, cantoInf: 0 },
   ]
+}
+
+function buildBuroPieces(measures) {
+  const { anchoTotal, altoTotal, fondo } = measures
+  const scaleAncho = anchoTotal / 500
+  const scaleAlto = altoTotal / 650
+  const scaleFondo = fondo / 550
+
+  return [
+    { num: 1, nombre: 'LATERAL', alto: positiveDimension(532 * scaleAlto), ancho: positiveDimension(400 * scaleFondo), cantidad: 2, material: 'Melamina 18mm', giro: 'N', cantoIzq: 'D', cantoDer: 'D', cantoSup: '', cantoInf: '' },
+    { num: 2, nombre: 'BASE / REPISA', alto: positiveDimension(464 * scaleAncho), ancho: positiveDimension(400 * scaleFondo), cantidad: 2, material: 'Melamina 18mm', giro: 'N', cantoIzq: 'D', cantoDer: 'D', cantoSup: '', cantoInf: '' },
+    { num: 3, nombre: 'TECHO', alto: positiveDimension(400 * scaleAncho), ancho: positiveDimension(400 * scaleFondo), cantidad: 1, material: 'Melamina 18mm', giro: 'N', cantoIzq: 'G', cantoDer: 'G', cantoSup: 'G', cantoInf: 'G' },
+    { num: 4, nombre: 'LATERAL DE CAJON', alto: positiveDimension(350 * scaleFondo), ancho: positiveDimension(100 * scaleAlto), cantidad: 2, material: 'Melamina 18mm', giro: 'N', cantoIzq: '', cantoDer: '', cantoSup: '', cantoInf: '' },
+    { num: 5, nombre: 'FRENTE DE CAJON', alto: positiveDimension(402 * scaleAncho), ancho: positiveDimension(100 * scaleAlto), cantidad: 2, material: 'Melamina 18mm', giro: 'N', cantoIzq: '', cantoDer: '', cantoSup: '', cantoInf: '' },
+    { num: 6, nombre: 'TAPA DE CAJON', alto: positiveDimension(494 * scaleAncho), ancho: positiveDimension(164 * scaleFondo), cantidad: 1, material: 'Melamina 18mm', giro: 'N', cantoIzq: 'G', cantoDer: 'G', cantoSup: 'G', cantoInf: 'G' },
+    { num: 7, nombre: 'FONDO DE CAJON', alto: positiveDimension(416 * scaleAncho), ancho: positiveDimension(328 * scaleFondo), cantidad: 1, material: 'MDF 3mm', giro: 'N', cantoIzq: '', cantoDer: '', cantoSup: '', cantoInf: '' },
+  ]
+}
+
+function buildPiecesForModel(model, measures) {
+  if (model?.base?.tipo === 'buro' || normalizeText(model?.title).includes('buro')) {
+    return buildBuroPieces(measures)
+  }
+  return buildZapateroPieces(measures)
 }
 
 async function loadImage(url) {
@@ -1204,7 +1342,7 @@ async function loadImage(url) {
 }
 
 async function generateDespiecePdf({ projectName, model, measures }) {
-  const pieces = buildZapateroPieces(measures)
+  const pieces = buildPiecesForModel(model, measures)
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const marginX = 36
