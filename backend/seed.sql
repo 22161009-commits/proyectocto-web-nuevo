@@ -62,12 +62,40 @@ CROSS JOIN (VALUES
 WHERE m.nombre_modelo = 'Zapatero'
   AND NOT EXISTS (SELECT 1 FROM piezas_modelo pm WHERE pm.id_modelo = m.id_modelo);
 
+-- Modelo editable: Buro de cajones
+INSERT INTO modelos (nombre_modelo, descripcion, creado_por)
+SELECT
+  'Buro de cajones',
+  '{"categoria":"Recámara","imagen":"/images/buro.jpeg","diagrama":"/images/diagrama_mueb/diagrama_buro.jpeg","base":{"tipo":"buro","anchoTotal":500,"altoTotal":650,"fondo":550,"anchoSuperior":500,"altoLateral":170,"altoCajon":100}}',
+  1
+WHERE NOT EXISTS (SELECT 1 FROM modelos WHERE nombre_modelo = 'Buro de cajones');
+
+UPDATE modelos
+SET descripcion = '{"categoria":"Recámara","imagen":"/images/buro.jpeg","diagrama":"/images/diagrama_mueb/diagrama_buro.jpeg","base":{"tipo":"buro","anchoTotal":500,"altoTotal":650,"fondo":550,"anchoSuperior":500,"altoLateral":170,"altoCajon":100}}'
+WHERE nombre_modelo = 'Buro de cajones';
+
+DELETE FROM piezas_modelo
+WHERE id_modelo = (SELECT id_modelo FROM modelos WHERE nombre_modelo = 'Buro de cajones');
+
+INSERT INTO piezas_modelo (id_modelo, nombre_pieza, largo_base, ancho_base, cantidad, material, giro, canto_izq, canto_der, canto_sup, canto_inf)
+SELECT m.id_modelo, v.nombre, v.largo, v.ancho, v.cantidad, v.material, v.giro, v.canto_izq, v.canto_der, v.canto_sup, v.canto_inf
+FROM modelos m
+CROSS JOIN (VALUES
+  ('LATERAL', 532, 400, 2, 'Melamina 18mm', 'N', 1, 1, 0, 0),
+  ('BASE / REPISA', 464, 400, 2, 'Melamina 18mm', 'N', 1, 1, 0, 0),
+  ('TECHO', 400, 400, 1, 'Melamina 18mm', 'N', 1, 1, 1, 1),
+  ('LATERAL DE CAJON', 350, 100, 2, 'Melamina 18mm', 'N', 0, 0, 0, 0),
+  ('FRENTE DE CAJON', 402, 100, 2, 'Melamina 18mm', 'N', 0, 0, 0, 0),
+  ('TAPA DE CAJON', 494, 164, 1, 'Melamina 18mm', 'N', 1, 1, 1, 1),
+  ('FONDO DE CAJON', 416, 328, 1, 'MDF 3mm', 'N', 0, 0, 0, 0)
+) AS v(nombre, largo, ancho, cantidad, material, giro, canto_izq, canto_der, canto_sup, canto_inf)
+WHERE m.nombre_modelo = 'Buro de cajones';
+
 -- Otros modelos de catalogo (sin diagrama editable por ahora)
 INSERT INTO modelos (nombre_modelo, descripcion, creado_por)
 SELECT v.nombre, v.meta, 1
 FROM (VALUES
   ('Mesa de trabajo', '{"categoria":"Mesa","imagen":"/images/mesa.jpg"}'),
-  ('Buro de cajones', '{"categoria":"Almacenamiento","imagen":"/images/buro.webp"}'),
   ('Cama individual', '{"categoria":"Dormitorio","imagen":"/images/cama_individual.jpeg"}'),
   ('Sofa modular', '{"categoria":"Sala","imagen":"/images/sofa.jpeg"}')
 ) AS v(nombre, meta)

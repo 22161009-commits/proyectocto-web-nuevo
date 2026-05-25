@@ -372,6 +372,7 @@ app.post('/api/proyectos', async (req, res) => {
     const medidasExtra = {
       anchoSuperior: measures.anchoSuperior,
       altoLateral: measures.altoLateral,
+      altoCajon: measures.altoCajon,
     }
 
     const proyectoInsert = await client.query(
@@ -474,6 +475,7 @@ app.put('/api/proyectos/:id', async (req, res) => {
     const medidasExtra = {
       anchoSuperior: measures.anchoSuperior,
       altoLateral: measures.altoLateral,
+      altoCajon: measures.altoCajon,
     }
 
     await client.query(
