@@ -1,13 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Navigate,
-  NavLink,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-  useParams,
-} from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -52,7 +44,7 @@ const FURNITURE_CATEGORIES = [
   },
   {
     name: 'Baño',
-    image: '/images/Categorias_muebles/CAT_BAÑO.jpeg',
+    image: '/images/Categorias_muebles/CAT_BANO.jpeg',
     subcategories: ['Muebles lavabo', 'Espejos', 'Repisas', 'Gabinetes'],
     keywords: ['bano', 'lavabo', 'espejo', 'repisa', 'gabinete'],
   },
@@ -84,10 +76,37 @@ function getModelsForCategory(category, catalogItems) {
   })
 }
 
+function MenuIcon({ name }) {
+  const icons = {
+    inicio: (
+      <path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z" />
+    ),
+    proyectos: (
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13A2.5 2.5 0 0 1 17.5 21h-11A2.5 2.5 0 0 1 4 18.5zM8 8h8M8 12h8M8 16h5" />
+    ),
+    favoritos: (
+      <path d="m12 17.3 5.6 3.4-1.5-6.4 5-4.3-6.6-.6L12 3.3 9.5 9.4 3 10l5 4.3-1.5 6.4z" />
+    ),
+    crear: (
+      <path d="M12 5v14M5 12h14" />
+    ),
+    configuracion: (
+      <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Zm7.2-2.2.1-1.3-.1-1.3 2-1.5-2-3.4-2.4 1a8 8 0 0 0-2.2-1.3L14.2 3h-4.4l-.4 2.5a8 8 0 0 0-2.2 1.3l-2.4-1-2 3.4 2 1.5-.1 1.3.1 1.3-2 1.5 2 3.4 2.4-1a8 8 0 0 0 2.2 1.3l.4 2.5h4.4l.4-2.5a8 8 0 0 0 2.2-1.3l2.4 1 2-3.4z" />
+    ),
+    ayuda: (
+      <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-6v.1M9.8 9.2A2.4 2.4 0 0 1 12.1 7c1.4 0 2.4.9 2.4 2.1 0 1.8-2.4 2-2.4 4" />
+    ),
+  }
+
+  return (
+    <svg className="menu-icon" viewBox="0 0 24 24" aria-hidden="true">
+      {icons[name]}
+    </svg>
+  )
+}
+
 function App() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const isCategoryRoute = location.pathname.startsWith('/categoria/')
   const [isLoggedIn, setIsLoggedIn] = useState(
     () => localStorage.getItem('isLoggedIn') === 'true',
   )
@@ -492,32 +511,61 @@ function App() {
   return (
     <main className="dashboard">
       <aside className="sidebar">
-        <p className="brand">elesquinero</p>
-        <p className="menu-title">MENU</p>
-        <NavLink className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} to="/inicio">
-          Inicio
+        <p className="brand icon-brand">B</p>
+        <NavLink
+          className={({ isActive }) => `menu-item icon-menu-item ${isActive ? 'active' : ''}`}
+          to="/inicio"
+          aria-label="Inicio"
+          title="Inicio"
+        >
+          <MenuIcon name="inicio" />
+          <span className="menu-tooltip">Inicio</span>
         </NavLink>
         <NavLink
-          className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+          className={({ isActive }) => `menu-item icon-menu-item ${isActive ? 'active' : ''}`}
           to="/mis-proyectos"
+          aria-label="Mis proyectos"
+          title="Mis proyectos"
         >
-          Mis proyectos
+          <MenuIcon name="proyectos" />
+          <span className="menu-tooltip">Mis proyectos</span>
         </NavLink>
         <NavLink
-          className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+          className={({ isActive }) => `menu-item icon-menu-item ${isActive ? 'active' : ''}`}
           to="/favoritos"
+          aria-label="Favoritos"
+          title="Favoritos"
         >
-          Favoritos
+          <MenuIcon name="favoritos" />
+          <span className="menu-tooltip">Favoritos</span>
         </NavLink>
-        <p className="menu-title">OTROS</p>
+        <button
+          type="button"
+          className="menu-item icon-menu-item create-menu-item"
+          onClick={() => navigate('/inicio')}
+          aria-label="Crear"
+          title="Crear"
+        >
+          <MenuIcon name="crear" />
+          <span className="menu-tooltip">Crear</span>
+        </button>
         <NavLink
-          className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+          className={({ isActive }) => `menu-item icon-menu-item ${isActive ? 'active' : ''}`}
           to="/configuracion"
+          aria-label="Configuracion"
+          title="Configuracion"
         >
-          Configuracion
+          <MenuIcon name="configuracion" />
+          <span className="menu-tooltip">Configuracion</span>
         </NavLink>
-        <NavLink className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`} to="/ayuda">
-          Ayuda
+        <NavLink
+          className={({ isActive }) => `menu-item icon-menu-item ${isActive ? 'active' : ''}`}
+          to="/ayuda"
+          aria-label="Ayuda"
+          title="Ayuda"
+        >
+          <MenuIcon name="ayuda" />
+          <span className="menu-tooltip">Ayuda</span>
         </NavLink>
       </aside>
 
