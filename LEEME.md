@@ -126,7 +126,7 @@ Las imágenes se cargan desde `public/images/Categorias_muebles/`.
 La imagen de Baño está conectada desde:
 
 ```text
-public/images/Categorias_muebles/CAT_BAÑO.jpeg
+public/images/Categorias_muebles/CAT_BANO.jpeg
 ```
 
 La pantalla principal no tiene buscador. El buscador está dentro de cada pantalla de categoría y filtra subcategorías y modelos. También ignora acentos, así que `bano` encuentra `Baño`.
