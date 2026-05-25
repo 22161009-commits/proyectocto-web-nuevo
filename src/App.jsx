@@ -571,10 +571,12 @@ function App() {
 
       <section className="content">
         <header className="topbar">
-          {isCategoryRoute ? <span className="topbar-title">Explorar categoria</span> : <span />}
-          <button className="logout" onClick={handleLogout}>
-            Cerrar sesion
-          </button>
+          <span />
+          <div className="topbar-actions">
+            <button className="logout" onClick={handleLogout}>
+              Cerrar sesion
+            </button>
+          </div>
         </header>
 
         <Routes>
@@ -584,12 +586,6 @@ function App() {
               <HomeView
                 catalogItems={catalogItems}
                 userName={localStorage.getItem('userName')}
-                selectedModel={selectedModel}
-                projectName={projectName}
-                projectMessage={projectMessage}
-                onProjectNameChange={setProjectName}
-                onChooseModel={handleChooseModel}
-                onCreateProject={handleCreateProject}
               />
             }
           />
@@ -598,12 +594,7 @@ function App() {
             element={
               <CategoryView
                 catalogItems={catalogItems}
-                selectedModel={selectedModel}
-                projectName={projectName}
-                projectMessage={projectMessage}
-                onProjectNameChange={setProjectName}
                 onChooseModel={handleChooseModel}
-                onCreateProject={handleCreateProject}
               />
             }
           />
@@ -730,12 +721,7 @@ function HomeView({ catalogItems, userName }) {
 
 function CategoryView({
   catalogItems,
-  selectedModel,
-  projectName,
-  projectMessage,
-  onProjectNameChange,
   onChooseModel,
-  onCreateProject,
 }) {
   const { categorySlug } = useParams()
   const [categorySearch, setCategorySearch] = useState('')
@@ -836,42 +822,6 @@ function CategoryView({
         ) : null}
       </section>
 
-      <section className="content-view project-creator">
-        <div className="page-header">
-          <h2>Crear proyecto rapido</h2>
-          <p>Para muebles con diagrama, la edicion de medidas se hace en la pantalla del mueble.</p>
-        </div>
-        {selectedModel?.diagram ? (
-          <div className="empty-state">
-            <p>Ya elegiste un mueble con diagrama. Edita sus medidas y guardalo desde alli.</p>
-          </div>
-        ) : (
-          <>
-            {projectMessage ? <p className="login-success">{projectMessage}</p> : null}
-            <form onSubmit={onCreateProject} className="project-form">
-              <label htmlFor="selectedModel">Mueble seleccionado</label>
-              <input
-                id="selectedModel"
-                type="text"
-                value={selectedModel ? selectedModel.title : 'Aun no seleccionas mueble'}
-                readOnly
-              />
-              <label htmlFor="projectName">Nombre del proyecto</label>
-              <input
-                id="projectName"
-                type="text"
-                value={projectName}
-                onChange={(event) => onProjectNameChange(event.target.value)}
-                placeholder="Ejemplo: Mesa oficina abril"
-                required
-              />
-              <button type="submit" disabled={!selectedModel || !projectName.trim()}>
-                Guardar en mis proyectos
-              </button>
-            </form>
-          </>
-        )}
-      </section>
     </>
   )
 }
