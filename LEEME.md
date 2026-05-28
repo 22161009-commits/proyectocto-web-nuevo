@@ -87,10 +87,27 @@ Variables necesarias (ya configuradas en `.env`):
 
 | Archivo | Variable |
 |---------|----------|
-| `.env` (raíz) | `VITE_GOOGLE_CLIENT_ID` |
+| `.env` (raíz) | `VITE_GOOGLE_CLIENT_ID`, `VITE_API_URL` |
 | `backend/.env` | `GOOGLE_CLIENT_ID` (mismo valor) |
 
 **Importante:** si cambias el `.env`, reinicia `npm run dev` y `npm run dev:backend`.
+
+### Pruebas con VS Code Tunnel
+
+Si compartes la app con otra persona usando un túnel, necesitas exponer **dos puertos**:
+
+- Frontend: `5173`
+- Backend: `3001`
+
+En `.env`, `VITE_API_URL` debe apuntar a la URL pública del túnel del backend:
+
+```bash
+VITE_API_URL=https://tu-tunel-del-puerto-3001/api
+```
+
+No dejes `VITE_API_URL=http://localhost:3001/api` para una prueba externa, porque en la computadora de la otra persona `localhost` apunta a su propia máquina y la carga falla.
+
+También agrega la URL pública del frontend en Google Cloud Console, en **Authorized JavaScript origins**, para que Google Sign-In acepte el dominio del túnel.
 
 ### Si Google dice "app en prueba"
 
