@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3001/api'
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/$/, '')
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -44,6 +44,36 @@ export async function deleteProyecto(idProyecto, idUsuario) {
   })
 }
 
+export async function createModeloPropio(payload) {
+  const data = await request('/modelos-propios', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.proyecto
+}
+
+export async function updateModeloPropio(idModeloPropio, payload) {
+  const data = await request(`/modelos-propios/${idModeloPropio}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+  return data.proyecto
+}
+
+export async function deleteModeloPropio(idModeloPropio, idUsuario) {
+  await request(`/modelos-propios/${idModeloPropio}?id_usuario=${idUsuario}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function toggleModeloPropioFavorito(idModeloPropio, idUsuario, esFavorito) {
+  const data = await request(`/modelos-propios/${idModeloPropio}/favorito`, {
+    method: 'PATCH',
+    body: JSON.stringify({ id_usuario: idUsuario, es_favorito: esFavorito }),
+  })
+  return data.es_favorito
+}
+
 export async function loginWithGoogle(credential) {
   const data = await request('/auth/google', {
     method: 'POST',
@@ -58,4 +88,17 @@ export async function toggleFavoritoApi(idProyecto, idUsuario, esFavorito) {
     body: JSON.stringify({ id_usuario: idUsuario, es_favorito: esFavorito }),
   })
   return data.es_favorito
+}
+
+export async function fetchUserProfile(idUsuario) {
+  const data = await request(`/usuarios/${idUsuario}/perfil`)
+  return data.user
+}
+
+export async function updateUserProfile(idUsuario, payload) {
+  const data = await request(`/usuarios/${idUsuario}/perfil`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+  return data.user
 }
