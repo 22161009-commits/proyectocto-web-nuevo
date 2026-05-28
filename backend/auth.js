@@ -39,5 +39,9 @@ export function mapUserResponse(row) {
     email: row.email,
     id_rol: row.id_rol,
     nombre_rol: row.nombre_rol ?? null,
+    perfil_info: row.perfil_info ?? '',
+    sexo: row.sexo ?? '',
+    correo_contacto: row.correo_contacto ?? row.email ?? '',
+    foto_url: row.foto_url ?? '',
   }
 }

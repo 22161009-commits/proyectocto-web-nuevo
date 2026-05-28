@@ -12,7 +12,7 @@ const app = express()
 const PORT = Number(process.env.PORT || 3001)
 
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '8mb' }))
 
 function parseModeloMeta(row) {
   let meta = {}
@@ -28,9 +28,16 @@ function parseModeloMeta(row) {
     category: meta.categoria || 'General',
     image: meta.imagen || '/images/mesa.jpg',
     diagram: meta.diagrama || null,
+    supportDiagram: meta.diagramaApoyo || null,
     base: meta.base || null,
     descripcion: row.descripcion,
   }
+}
+
+function normalizeCubrecanto(value) {
+  const numericValue = Number(value)
+  if (Number.isFinite(numericValue)) return numericValue > 0 ? 1 : 0
+  return String(value || '').trim() ? 1 : 0
 }
 
 function formatDate(dateValue) {
@@ -61,10 +68,31 @@ function mapProyectoToClient(row, piezas = []) {
     category: meta.categoria || 'General',
     image: meta.imagen || '/images/mesa.jpg',
     diagram: meta.diagrama || null,
+    supportDiagram: meta.diagramaApoyo || null,
     measures,
     isFavorite: !!row.es_favorito,
     updatedAt: formatDate(row.fecha_creacion),
     piezas,
+  }
+}
+
+function mapModeloPropioToClient(row) {
+  return {
+    id: `custom-${row.id_modelo_propio}`,
+    id_proyecto: `custom-${row.id_modelo_propio}`,
+    id_modelo_propio: row.id_modelo_propio,
+    id_modelo: null,
+    name: row.nombre_proyecto,
+    model: 'Modelo personalizado',
+    category: 'Personalizado',
+    image: '/images/crear_nuev_diseño.jpeg',
+    updatedAt: formatDate(row.fecha_actualizacion || row.fecha_creacion),
+    isFavorite: !!row.es_favorito,
+    measures: {
+      custom: true,
+      pieces: row.piezas_json || [],
+      sidePieces: row.piezas_lado_json || [],
+    },
   }
 }
 
@@ -86,7 +114,8 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT u.id_usuario, u.nombre, u.email, u.contrasena, u.id_rol, r.nombre_rol
+      `SELECT u.id_usuario, u.nombre, u.email, u.contrasena, u.id_rol,
+              u.perfil_info, u.sexo, u.correo_contacto, u.foto_url, r.nombre_rol
        FROM usuarios u
        LEFT JOIN roles r ON r.id_rol = u.id_rol
        WHERE LOWER(u.email) = LOWER($1)`,
@@ -146,7 +175,7 @@ app.post('/api/auth/register', async (req, res) => {
     const insert = await pool.query(
       `INSERT INTO usuarios (nombre, email, contrasena, id_rol)
        VALUES ($1, $2, $3, $4)
-       RETURNING id_usuario, nombre, email, id_rol`,
+       RETURNING id_usuario, nombre, email, id_rol, perfil_info, sexo, correo_contacto, foto_url`,
       [nombre.trim(), email.trim().toLowerCase(), hashedPassword, idRolUsuario],
     )
 
@@ -175,7 +204,8 @@ app.post('/api/auth/google', async (req, res) => {
     const idRolUsuario = await getRolUsuarioId(pool)
 
     const byGoogle = await pool.query(
-      `SELECT u.id_usuario, u.nombre, u.email, u.id_rol, r.nombre_rol
+      `SELECT u.id_usuario, u.nombre, u.email, u.id_rol,
+              u.perfil_info, u.sexo, u.correo_contacto, u.foto_url, r.nombre_rol
        FROM usuarios u
        LEFT JOIN roles r ON r.id_rol = u.id_rol
        WHERE u.google_id = $1`,
@@ -187,7 +217,8 @@ app.post('/api/auth/google', async (req, res) => {
     }
 
     const byEmail = await pool.query(
-      `SELECT u.id_usuario, u.nombre, u.email, u.google_id, u.id_rol, r.nombre_rol
+      `SELECT u.id_usuario, u.nombre, u.email, u.google_id, u.id_rol,
+              u.perfil_info, u.sexo, u.correo_contacto, u.foto_url, r.nombre_rol
        FROM usuarios u
        LEFT JOIN roles r ON r.id_rol = u.id_rol
        WHERE LOWER(u.email) = $1`,
@@ -200,11 +231,12 @@ app.post('/api/auth/google', async (req, res) => {
         `UPDATE usuarios
          SET google_id = $1, nombre = COALESCE(NULLIF(nombre, ''), $2)
          WHERE id_usuario = $3
-         RETURNING id_usuario, nombre, email, id_rol`,
+         RETURNING id_usuario, nombre, email, id_rol, perfil_info, sexo, correo_contacto, foto_url`,
         [googleUser.googleId, googleUser.nombre, existing.id_usuario],
       )
       const withRole = await pool.query(
-        `SELECT u.id_usuario, u.nombre, u.email, u.id_rol, r.nombre_rol
+        `SELECT u.id_usuario, u.nombre, u.email, u.id_rol,
+                u.perfil_info, u.sexo, u.correo_contacto, u.foto_url, r.nombre_rol
          FROM usuarios u
          LEFT JOIN roles r ON r.id_rol = u.id_rol
          WHERE u.id_usuario = $1`,
@@ -216,12 +248,13 @@ app.post('/api/auth/google', async (req, res) => {
     const insert = await pool.query(
       `INSERT INTO usuarios (nombre, email, contrasena, id_rol, google_id)
        VALUES ($1, $2, NULL, $3, $4)
-       RETURNING id_usuario, nombre, email, id_rol`,
+       RETURNING id_usuario, nombre, email, id_rol, perfil_info, sexo, correo_contacto, foto_url`,
       [googleUser.nombre, googleUser.email, idRolUsuario, googleUser.googleId],
     )
 
     const withRole = await pool.query(
-      `SELECT u.id_usuario, u.nombre, u.email, u.id_rol, r.nombre_rol
+      `SELECT u.id_usuario, u.nombre, u.email, u.id_rol,
+              u.perfil_info, u.sexo, u.correo_contacto, u.foto_url, r.nombre_rol
        FROM usuarios u
        LEFT JOIN roles r ON r.id_rol = u.id_rol
        WHERE u.id_usuario = $1`,
@@ -234,6 +267,77 @@ app.post('/api/auth/google', async (req, res) => {
       ok: false,
       message: error.message || 'No se pudo validar la cuenta de Google.',
     })
+  }
+})
+
+// --- Perfil de usuario ---
+app.get('/api/usuarios/:id/perfil', async (req, res) => {
+  const idUsuario = Number(req.params.id)
+  if (!idUsuario) {
+    return res.status(400).json({ ok: false, message: 'id_usuario invalido.' })
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT u.id_usuario, u.nombre, u.email, u.id_rol,
+              u.perfil_info, u.sexo, u.correo_contacto, u.foto_url, r.nombre_rol
+       FROM usuarios u
+       LEFT JOIN roles r ON r.id_rol = u.id_rol
+       WHERE u.id_usuario = $1`,
+      [idUsuario],
+    )
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' })
+    }
+
+    return res.json({ ok: true, user: mapUserResponse(result.rows[0]) })
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.put('/api/usuarios/:id/perfil', async (req, res) => {
+  const idUsuario = Number(req.params.id)
+  const { nombre, perfil_info = '', sexo = '', correo_contacto = '', foto_url = '' } = req.body
+
+  if (!idUsuario) {
+    return res.status(400).json({ ok: false, message: 'id_usuario invalido.' })
+  }
+
+  if (!String(nombre || '').trim()) {
+    return res.status(400).json({ ok: false, message: 'El nombre es obligatorio.' })
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE usuarios
+       SET nombre = $1,
+           perfil_info = $2,
+           sexo = $3,
+           correo_contacto = $4,
+           foto_url = $5
+       WHERE id_usuario = $6
+       RETURNING id_usuario, nombre, email, id_rol, perfil_info, sexo, correo_contacto, foto_url`,
+      [
+        String(nombre).trim(),
+        String(perfil_info || '').trim(),
+        ['H', 'M'].includes(String(sexo || '').trim().toUpperCase())
+          ? String(sexo).trim().toUpperCase()
+          : '',
+        String(correo_contacto || '').trim(),
+        String(foto_url || '').trim(),
+        idUsuario,
+      ],
+    )
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ ok: false, message: 'Usuario no encontrado.' })
+    }
+
+    return res.json({ ok: true, user: mapUserResponse(result.rows[0]) })
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: error.message })
   }
 })
 
@@ -271,7 +375,13 @@ app.get('/api/modelos/:id', async (req, res) => {
     res.json({
       ok: true,
       modelo: parseModeloMeta(result.rows[0]),
-      piezasModelo: piezasModelo.rows,
+      piezasModelo: piezasModelo.rows.map((pieza) => ({
+        ...pieza,
+        canto_izq: normalizeCubrecanto(pieza.canto_izq),
+        canto_der: normalizeCubrecanto(pieza.canto_der),
+        canto_sup: normalizeCubrecanto(pieza.canto_sup),
+        canto_inf: normalizeCubrecanto(pieza.canto_inf),
+      })),
     })
   } catch (error) {
     res.status(500).json({ ok: false, message: error.message })
@@ -299,7 +409,24 @@ app.get('/api/proyectos', async (req, res) => {
 
     res.json({
       ok: true,
-      proyectos: result.rows.map((row) => mapProyectoToClient(row)),
+      proyectos: [
+        ...result.rows.map((row) => ({
+          ...mapProyectoToClient(row),
+          sortDate: row.fecha_creacion,
+        })),
+        ...(await pool.query(
+          `SELECT id_modelo_propio, id_usuario, nombre_proyecto, piezas_json, piezas_lado_json,
+                  es_favorito, fecha_creacion, fecha_actualizacion
+           FROM modelos_propios
+           WHERE id_usuario = $1`,
+          [idUsuario],
+        )).rows.map((row) => ({
+          ...mapModeloPropioToClient(row),
+          sortDate: row.fecha_actualizacion || row.fecha_creacion,
+        })),
+      ]
+        .sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate))
+        .map(({ sortDate: _sortDate, ...project }) => project),
     })
   } catch (error) {
     res.status(500).json({ ok: false, message: error.message })
@@ -373,6 +500,26 @@ app.post('/api/proyectos', async (req, res) => {
       anchoSuperior: measures.anchoSuperior,
       altoLateral: measures.altoLateral,
       altoCajon: measures.altoCajon,
+      anchoModulo: measures.anchoModulo,
+      anchoCama: measures.anchoCama,
+      fondoSuperior: measures.fondoSuperior,
+      anchoFrontal: measures.anchoFrontal,
+      anchoPuerta: measures.anchoPuerta,
+      altoCajonera: measures.altoCajonera,
+      altoPuertaChica: measures.altoPuertaChica,
+      altoVertical: measures.altoVertical,
+      anchoCajon: measures.anchoCajon,
+      fondoModulo: measures.fondoModulo,
+      altoDivisor: measures.altoDivisor,
+      volado: measures.volado,
+      fondoInterior: measures.fondoInterior,
+      fondoCajon: measures.fondoCajon,
+      anchoFaldon: measures.anchoFaldon,
+      fondoTablero: measures.fondoTablero,
+      altoZocalo: measures.altoZocalo,
+      altoAmarre: measures.altoAmarre,
+      altoFondo: measures.altoFondo,
+      anchoFondo: measures.anchoFondo,
     }
 
     const proyectoInsert = await client.query(
@@ -405,6 +552,7 @@ app.post('/api/proyectos', async (req, res) => {
         [id_modelo],
       )
 
+      // Recalcula cada pieza segun medidas y guarda copia en tabla piezas (no en piezas_modelo)
       const piezasEscaladas = scalePiezasFromModelo(
         piezasModeloResult.rows,
         measures,
@@ -476,6 +624,26 @@ app.put('/api/proyectos/:id', async (req, res) => {
       anchoSuperior: measures.anchoSuperior,
       altoLateral: measures.altoLateral,
       altoCajon: measures.altoCajon,
+      anchoModulo: measures.anchoModulo,
+      anchoCama: measures.anchoCama,
+      fondoSuperior: measures.fondoSuperior,
+      anchoFrontal: measures.anchoFrontal,
+      anchoPuerta: measures.anchoPuerta,
+      altoCajonera: measures.altoCajonera,
+      altoPuertaChica: measures.altoPuertaChica,
+      altoVertical: measures.altoVertical,
+      anchoCajon: measures.anchoCajon,
+      fondoModulo: measures.fondoModulo,
+      altoDivisor: measures.altoDivisor,
+      volado: measures.volado,
+      fondoInterior: measures.fondoInterior,
+      fondoCajon: measures.fondoCajon,
+      anchoFaldon: measures.anchoFaldon,
+      fondoTablero: measures.fondoTablero,
+      altoZocalo: measures.altoZocalo,
+      altoAmarre: measures.altoAmarre,
+      altoFondo: measures.altoFondo,
+      anchoFondo: measures.anchoFondo,
     }
 
     await client.query(
@@ -546,6 +714,120 @@ app.put('/api/proyectos/:id', async (req, res) => {
   }
 })
 
+app.post('/api/modelos-propios', async (req, res) => {
+  const { id_usuario, nombre_proyecto, pieces = [], sidePieces = [], es_favorito = false } = req.body
+
+  if (!id_usuario || !String(nombre_proyecto || '').trim()) {
+    return res.status(400).json({
+      ok: false,
+      message: 'id_usuario y nombre_proyecto son obligatorios.',
+    })
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO modelos_propios
+         (id_usuario, nombre_proyecto, piezas_json, piezas_lado_json, es_favorito)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id_modelo_propio, id_usuario, nombre_proyecto, piezas_json, piezas_lado_json,
+                 es_favorito, fecha_creacion, fecha_actualizacion`,
+      [
+        id_usuario,
+        String(nombre_proyecto).trim(),
+        JSON.stringify(pieces),
+        JSON.stringify(sidePieces),
+        !!es_favorito,
+      ],
+    )
+
+    return res.status(201).json({ ok: true, proyecto: mapModeloPropioToClient(result.rows[0]) })
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.put('/api/modelos-propios/:id', async (req, res) => {
+  const idModeloPropio = Number(req.params.id)
+  const { id_usuario, nombre_proyecto, pieces = [], sidePieces = [], es_favorito = false } = req.body
+
+  if (!idModeloPropio || !id_usuario || !String(nombre_proyecto || '').trim()) {
+    return res.status(400).json({ ok: false, message: 'Datos incompletos.' })
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE modelos_propios
+       SET nombre_proyecto = $1,
+           piezas_json = $2,
+           piezas_lado_json = $3,
+           es_favorito = $4,
+           fecha_actualizacion = NOW()
+       WHERE id_modelo_propio = $5 AND id_usuario = $6
+       RETURNING id_modelo_propio, id_usuario, nombre_proyecto, piezas_json, piezas_lado_json,
+                 es_favorito, fecha_creacion, fecha_actualizacion`,
+      [
+        String(nombre_proyecto).trim(),
+        JSON.stringify(pieces),
+        JSON.stringify(sidePieces),
+        !!es_favorito,
+        idModeloPropio,
+        id_usuario,
+      ],
+    )
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ ok: false, message: 'Modelo propio no encontrado.' })
+    }
+
+    return res.json({ ok: true, proyecto: mapModeloPropioToClient(result.rows[0]) })
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.patch('/api/modelos-propios/:id/favorito', async (req, res) => {
+  const idModeloPropio = Number(req.params.id)
+  const { id_usuario, es_favorito } = req.body
+
+  try {
+    const result = await pool.query(
+      `UPDATE modelos_propios
+       SET es_favorito = $1, fecha_actualizacion = NOW()
+       WHERE id_modelo_propio = $2 AND id_usuario = $3
+       RETURNING es_favorito`,
+      [!!es_favorito, idModeloPropio, id_usuario],
+    )
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ ok: false, message: 'Modelo propio no encontrado.' })
+    }
+
+    return res.json({ ok: true, es_favorito: result.rows[0].es_favorito })
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: error.message })
+  }
+})
+
+app.delete('/api/modelos-propios/:id', async (req, res) => {
+  const idModeloPropio = Number(req.params.id)
+  const idUsuario = Number(req.query.id_usuario)
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM modelos_propios WHERE id_modelo_propio = $1 AND id_usuario = $2 RETURNING id_modelo_propio',
+      [idModeloPropio, idUsuario],
+    )
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ ok: false, message: 'Modelo propio no encontrado.' })
+    }
+
+    return res.json({ ok: true })
+  } catch (error) {
+    return res.status(500).json({ ok: false, message: error.message })
+  }
+})
+
 app.patch('/api/proyectos/:id/favorito', async (req, res) => {
   const idProyecto = Number(req.params.id)
   const { id_usuario, es_favorito } = req.body
@@ -582,6 +864,16 @@ app.delete('/api/proyectos/:id', async (req, res) => {
   } catch (error) {
     res.status(500).json({ ok: false, message: error.message })
   }
+})
+
+app.use((error, _req, res, next) => {
+  if (error?.type === 'entity.too.large') {
+    return res.status(413).json({
+      ok: false,
+      message: 'La imagen es demasiado grande. Usa una foto mas ligera.',
+    })
+  }
+  return next(error)
 })
 
 app.listen(PORT, () => {
